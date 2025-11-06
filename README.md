@@ -5,3 +5,5 @@
 > PR smoke 20251106_130904
 
 > Auto-delete smoke 20251106_132252
+
+> Final ruleset smoke 20251106_143244
