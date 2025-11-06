@@ -7,3 +7,5 @@
 > Auto-delete smoke 20251106_132252
 
 > Final ruleset smoke 20251106_143244
+
+> Public snapshot verified at 20251106_143842
