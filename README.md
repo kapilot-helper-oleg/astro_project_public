@@ -3,3 +3,5 @@
 > Public smoke line: 20251106_122433
 
 > PR smoke 20251106_130904
+
+> Auto-delete smoke 20251106_132252
