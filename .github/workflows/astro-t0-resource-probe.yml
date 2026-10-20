@@ -1,0 +1,65 @@
+name: ASTRO T0 Linux resource and dependency probe
+on:
+  push:
+    branches:
+      - astro-t0-linux-resource-probe-20261020
+    paths:
+      - .github/workflows/astro-t0-resource-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astro-t0-public-resource-probe
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Public Linux host preflight only - no science
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Verify actual CPU RAM disk Linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "PROBE_SCOPE=HARDWARE_ONLY_NO_PROJECT_CODE"
+          echo "OS=$(uname -s)"
+          echo "ARCH=$(uname -m)"
+          echo "KERNEL=$(uname -r)"
+          CORES="$(nproc)"
+          MEM_AVAILABLE_MIB="$(awk '/MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo)"
+          MEM_TOTAL_MIB="$(awk '/MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo)"
+          DISK_AVAILABLE_MIB="$(df -Pm "$RUNNER_TEMP" | awk 'NR==2 {print $4}')"
+          echo "CPU_AVAILABLE=$CORES"
+          echo "MEM_TOTAL_MIB=$MEM_TOTAL_MIB"
+          echo "MEM_AVAILABLE_MIB=$MEM_AVAILABLE_MIB"
+          echo "DISK_AVAILABLE_MIB=$DISK_AVAILABLE_MIB"
+          test "$(uname -s)" = Linux
+          test "$CORES" -ge 4
+          test "$MEM_AVAILABLE_MIB" -ge 8192
+          test "$DISK_AVAILABLE_MIB" -ge 2048
+          echo "RESOURCE_PREFLIGHT=PASS"
+
+      - name: Install and smoke-test Oracle-pinned Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/astro-t0-probe-env"
+          PY="$RUNNER_TEMP/astro-t0-probe-env/bin/python"
+          "$PY" -m pip install --disable-pip-version-check --no-input -q numpy==2.0.2 scipy==1.13.1 pyswisseph==2.10.3.2
+          "$PY" - <<'PY'
+          import importlib.metadata as meta
+          import platform, numpy, scipy, swisseph
+          targets={'numpy':'2.0.2','scipy':'1.13.1','pyswisseph':'2.10.3.2'}
+          for name, expected in targets.items():
+              got=meta.version(name)
+              print('DEPENDENCY', name, 'VERSION', got)
+              if got != expected: raise RuntimeError(f'{name}: {got} != {expected}')
+          print('PYTHON_VERSION',platform.python_version())
+          print('SWISSEPH_ENGINE_VERSION',swisseph.version)
+          print('PINNED_IMPORT_PREFLIGHT=PASS')
+          print('REAL_ENGINE_EXECUTED=NO')
+          print('FULL_R200=NO')
+          PY
