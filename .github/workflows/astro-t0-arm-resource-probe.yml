@@ -63,3 +63,24 @@ jobs:
           print('ARM64_DEPENDENCIES_PASS=YES')
           print('REAL_SCIENCE_RUNS=0')
           PY
+
+      - name: Verify Linux process-control primitives required by bounded launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v timeout
+          command -v prlimit
+          command -v nice
+          timeout 3s prlimit --as=2147483648 -- nice -n 19 /bin/true
+          python3 - <<'PY'
+          import os, fcntl, signal, subprocess, multiprocessing
+          if not hasattr(signal,"SIGALRM"): raise RuntimeError("SIGALRM_MISSING")
+          if not hasattr(signal,"SIGKILL"): raise RuntimeError("SIGKILL_MISSING")
+          if not hasattr(os,"killpg"): raise RuntimeError("KILLPG_MISSING")
+          if not hasattr(os,"setsid"): raise RuntimeError("SETSID_MISSING")
+          if multiprocessing.get_context("spawn").get_start_method()!="spawn":
+              raise RuntimeError("SPAWN_CONTEXT_UNAVAILABLE")
+          print("FCNTL_SIGALRM_PROCESS_GROUP_PASS=YES")
+          print("LAUNCHER_LINUX_PRIMITIVES_PASS=YES")
+          print("SCIENTIFIC_EXECUTION=NO")
+          PY
