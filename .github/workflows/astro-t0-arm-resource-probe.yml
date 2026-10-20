@@ -1,0 +1,65 @@
+name: ASTRO T0 ARM64 Linux resource and dependency probe
+on:
+  push:
+    branches:
+      - astro-t0-linux-resource-probe-20261020
+    paths:
+      - .github/workflows/astro-t0-arm-resource-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astro-t0-public-arm64-probe
+  cancel-in-progress: true
+
+jobs:
+  arm64-preflight:
+    name: ARM64 Linux host resources and dependencies only
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 8
+    steps:
+      - name: Check actual ARM64 CPU RAM and disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCH="$(uname -m)"
+          CORES="$(nproc)"
+          TOTAL="$(awk '/MemTotal:/ {printf "%d",$2/1024}' /proc/meminfo)"
+          AVAILABLE="$(awk '/MemAvailable:/ {printf "%d",$2/1024}' /proc/meminfo)"
+          DISK="$(df -Pm "$RUNNER_TEMP" | awk 'NR==2 {print $4}')"
+          echo "ARCH=$ARCH"
+          echo "CPUS=$CORES"
+          echo "TOTAL_MIB=$TOTAL"
+          echo "AVAILABLE_MIB=$AVAILABLE"
+          echo "DISK_AVAILABLE_MIB=$DISK"
+          test "$(uname -s)" = Linux
+          test "$ARCH" = aarch64
+          test "$CORES" -ge 4
+          test "$AVAILABLE" -ge 8192
+          test "$DISK" -ge 2048
+          echo "ARM64_RESOURCES_PASS=YES"
+
+      - name: Verify versions from existing Oracle on isolated Python venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/astro-t0-arm64-probe"
+          PY="$RUNNER_TEMP/astro-t0-arm64-probe/bin/python"
+          "$PY" -m pip install --disable-pip-version-check --no-input -q numpy==2.0.2 scipy==1.13.1 pyswisseph==2.10.3.2
+          "$PY" - <<'PY'
+          import platform
+          import importlib.metadata as m
+          import numpy,scipy,swisseph
+          expect={'numpy':'2.0.2','scipy':'1.13.1','pyswisseph':'2.10.3.2'}
+          for k,v in expect.items():
+              got=m.version(k)
+              print('DIST',k,got)
+              if got!=v:raise RuntimeError('VERSION_MISMATCH:'+k)
+          print('PYTHON',platform.python_version())
+          print('ARCH',platform.machine())
+          print('SWE_VERSION',swisseph.version)
+          print('ARM64_DEPENDENCIES_PASS=YES')
+          print('REAL_SCIENCE_RUNS=0')
+          PY
